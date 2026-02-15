@@ -1,0 +1,61 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+import { normalizeStartResponse } from '../domain/normalizers';
+import { normalizeSymbolInput, validateStartForm } from '../domain/validators';
+import type { StrategyId } from '../domain/types';
+import { startSimulation } from '../services/simulationApi';
+import { useSimulationStore } from '../store/simulationStore';
+
+type FieldErrors = {
+  symbol?: string;
+  strategy?: string;
+};
+
+export function useStartSimulation() {
+  const navigate = useNavigate();
+  const createSimulation = useSimulationStore((state) => state.createSimulation);
+  const updateStatus = useSimulationStore((state) => state.updateStatus);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+
+  const submitStart = async (input: { symbol: string; strategy: StrategyId }): Promise<{ simulationId: string } | null> => {
+    if (isSubmitting) {
+      return null;
+    }
+
+    const normalizedSymbol = normalizeSymbolInput(input.symbol);
+    const errors = validateStartForm(normalizedSymbol, input.strategy);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      return null;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await startSimulation({ symbol: normalizedSymbol, strategy: input.strategy });
+      const normalized = normalizeStartResponse(response);
+      createSimulation({
+        simulationId: normalized.simulationId,
+        symbol: normalizedSymbol,
+        strategy: input.strategy,
+      });
+      updateStatus(normalized.simulationId, 'running');
+      navigate(`/monitoring/${normalized.simulationId}`);
+      return { simulationId: normalized.simulationId };
+    } catch (error) {
+      void error;
+      return null;
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return {
+    submitStart,
+    isSubmitting,
+    fieldErrors,
+    setFieldErrors,
+  };
+}
