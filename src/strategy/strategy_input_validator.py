@@ -14,8 +14,9 @@ class StrategyInputValidator:
         daily_candles: pd.DataFrame,
         rsi_data: pd.DataFrame | None,
         required_times: tuple[str, ...],
+        interval_minutes: int = 5,
     ) -> tuple[pd.DataFrame, pd.DataFrame | None]:
-        candles = self._normalize_candles(daily_candles)
+        candles = self._normalize_candles(daily_candles, interval_minutes=interval_minutes)
         self._validate_required_times(candles, required_times)
 
         normalized_rsi: pd.DataFrame | None = None
@@ -25,7 +26,7 @@ class StrategyInputValidator:
 
         return candles, normalized_rsi
 
-    def _normalize_candles(self, daily_candles: pd.DataFrame) -> pd.DataFrame:
+    def _normalize_candles(self, daily_candles: pd.DataFrame, interval_minutes: int) -> pd.DataFrame:
         if not isinstance(daily_candles, pd.DataFrame) or daily_candles.empty:
             raise StrategyInputError(ERROR_CODES["E_ST_003"], "strategy_input_missing_columns")
 
@@ -54,9 +55,23 @@ class StrategyInputValidator:
         if candles["timestamp"].duplicated().any():
             raise StrategyInputError(ERROR_CODES["E_ST_005"], "strategy_input_invalid_timestamp")
 
-        ts = candles["timestamp"].dt
-        if ((ts.minute % 5) != 0).any() or (ts.second != 0).any() or (ts.microsecond != 0).any():
+        if interval_minutes <= 0:
             raise StrategyInputError(ERROR_CODES["E_ST_005"], "strategy_input_invalid_timestamp")
+
+        ts = candles["timestamp"].dt
+        if (ts.second != 0).any() or (ts.microsecond != 0).any():
+            raise StrategyInputError(ERROR_CODES["E_ST_005"], "strategy_input_invalid_timestamp")
+
+        minute_aligned = ((ts.minute % interval_minutes) == 0).all()
+        if not minute_aligned:
+            if interval_minutes != 2:
+                raise StrategyInputError(ERROR_CODES["E_ST_005"], "strategy_input_invalid_timestamp")
+
+            if len(candles) > 1:
+                cadence = candles["timestamp"].diff().dropna()
+                expected = pd.Timedelta(minutes=interval_minutes)
+                if (cadence != expected).any():
+                    raise StrategyInputError(ERROR_CODES["E_ST_005"], "strategy_input_invalid_timestamp")
 
         for column in ("open", "high", "low", "close"):
             candles[column] = pd.to_numeric(candles[column], errors="coerce")
@@ -115,13 +130,62 @@ class StrategyInputValidator:
         return rsi_frame
 
     def _validate_required_times(self, candles: pd.DataFrame, required_times: tuple[str, ...]) -> None:
-        times = set(candles["timestamp"].dt.strftime("%H:%M").tolist())
         for required_time in required_times:
-            if required_time not in times:
+            if not self._has_required_time(candles, required_time):
                 raise StrategyInputError(
                     ERROR_CODES["E_ST_004"],
                     "strategy_input_missing_mandatory_candle",
                 )
+
+    def _has_required_time(self, candles: pd.DataFrame, required_time: str) -> bool:
+        hhmm_series = candles["timestamp"].dt.strftime("%H:%M")
+        if (hhmm_series == required_time).any():
+            return True
+
+        target_minutes = self._parse_hhmm_to_minutes(required_time)
+        if target_minutes is None:
+            return False
+
+        timestamps = candles["timestamp"]
+        day_minutes = timestamps.dt.hour * 60 + timestamps.dt.minute
+        interval_minutes = self._infer_interval_minutes(timestamps)
+        if interval_minutes <= 1:
+            return False
+
+        window_end = target_minutes + interval_minutes - 1
+        return ((day_minutes >= target_minutes) & (day_minutes <= window_end)).any()
+
+    @staticmethod
+    def _infer_interval_minutes(timestamps: pd.Series) -> int:
+        if len(timestamps) < 2:
+            return 1
+
+        diffs = timestamps.diff().dropna()
+        if diffs.empty:
+            return 1
+
+        first_minutes = int(diffs.iloc[0].total_seconds() // 60)
+        if first_minutes <= 0:
+            return 1
+
+        return first_minutes
+
+    @staticmethod
+    def _parse_hhmm_to_minutes(hhmm: str) -> int | None:
+        parts = hhmm.split(":")
+        if len(parts) != 2:
+            return None
+
+        try:
+            hour = int(parts[0])
+            minute = int(parts[1])
+        except ValueError:
+            return None
+
+        if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+            return None
+
+        return hour * 60 + minute
 
     def _validate_rsi_alignment(self, candles: pd.DataFrame, rsi_frame: pd.DataFrame) -> None:
         candle_ts = candles["timestamp"].tolist()

@@ -55,12 +55,17 @@ class MarketDataService:
     ) -> pd.DataFrame:
         self._validate_symbol(symbol)
         self._validate_query_params(period, interval)
+        interval_minutes = self._parse_interval_minutes(interval)
 
         now_kst = datetime.now(ZoneInfo("Asia/Seoul"))
         from_ts, to_ts = self._resolve_range(now_kst, period)
 
-        cached_df = self.cache_repository.read_by_symbol_period_interval(symbol, from_ts, to_ts)
-        if not cached_df.empty and self.is_cache_fresh(symbol, period, interval, now_kst):
+        should_use_cache = interval == DEFAULT_INTERVAL
+        cached_df = pd.DataFrame()
+        if should_use_cache:
+            cached_df = self.cache_repository.read_by_symbol_period_interval(symbol, from_ts, to_ts)
+
+        if should_use_cache and not cached_df.empty and self.is_cache_fresh(symbol, period, interval, now_kst):
             self.validate_market_data(cached_df)
             return cached_df.reset_index()
 
@@ -78,7 +83,10 @@ class MarketDataService:
 
                 normalized_df = self.validator.normalize_columns(raw_df)
                 normalized_df = self.validator.normalize_timezone(normalized_df)
-                filtered_df = self.validator.filter_trading_session(normalized_df)
+                filtered_df = self.validator.filter_trading_session(
+                    normalized_df,
+                    interval_minutes=interval_minutes,
+                )
                 self.validate_market_data(filtered_df)
 
                 rsi_series = self.rsi_calculator.calculate_rsi(filtered_df, period=14)
@@ -87,7 +95,8 @@ class MarketDataService:
                 fetched_at = datetime.now(timezone.utc)
                 enriched_df["fetched_at"] = fetched_at.isoformat()
 
-                self.upsert_market_data_cache(enriched_df, symbol, fetched_at)
+                if should_use_cache:
+                    self.upsert_market_data_cache(enriched_df, symbol, fetched_at)
 
                 return enriched_df.reset_index()
             except ExternalAPIError as exc:
@@ -153,6 +162,20 @@ class MarketDataService:
     def _validate_query_params(period: str, interval: str) -> None:
         if period not in SUPPORTED_PERIODS or interval not in SUPPORTED_INTERVALS:
             raise ValidationError(ERROR_CODES["E_MD_002"], "invalid_period_or_interval")
+
+    @staticmethod
+    def _parse_interval_minutes(interval: str) -> int:
+        if not interval.endswith("m"):
+            raise ValidationError(ERROR_CODES["E_MD_002"], "invalid_period_or_interval")
+
+        try:
+            minutes = int(interval[:-1])
+        except ValueError as exc:
+            raise ValidationError(ERROR_CODES["E_MD_002"], "invalid_period_or_interval") from exc
+
+        if minutes <= 0:
+            raise ValidationError(ERROR_CODES["E_MD_002"], "invalid_period_or_interval")
+        return minutes
 
     @staticmethod
     def _resolve_range(now_kst: datetime, period: str) -> tuple[datetime, datetime]:

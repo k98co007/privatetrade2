@@ -32,6 +32,7 @@ VALID_STRATEGIES = (
     "rsi_buy_sell_trailing_stop",
     "rsi_only_trailing_stop",
     "buy_trailing_then_sell_trailing",
+    "three_minute_buy_trailing_then_sell_trailing",
 )
 
 SYMBOL_REGEX = r"^[0-9]{6}\.KS$"

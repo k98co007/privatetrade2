@@ -6,7 +6,8 @@ export type StrategyId =
   | 'buy_sell_trailing_stop'
   | 'rsi_buy_sell_trailing_stop'
   | 'rsi_only_trailing_stop'
-  | 'buy_trailing_then_sell_trailing';
+  | 'buy_trailing_then_sell_trailing'
+  | 'three_minute_buy_trailing_then_sell_trailing';
 
 export type StrategyOption = {
   id: StrategyId;

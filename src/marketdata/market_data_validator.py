@@ -73,20 +73,47 @@ class MarketDataValidator:
                 cause=exc,
             ) from exc
 
-    def filter_trading_session(self, df: pd.DataFrame) -> pd.DataFrame:
+    def filter_trading_session(self, df: pd.DataFrame, interval_minutes: int = 5) -> pd.DataFrame:
         if df.empty:
             raise NoDataError(ERROR_CODES["E_MD_005"], "no_market_data")
+
+        if interval_minutes <= 0:
+            raise ValidationError(ERROR_CODES["E_MD_003"], "missing_required_columns")
 
         idx = pd.DatetimeIndex(df.index)
         output = df[idx.weekday < 5]
         output = output.between_time("09:00", "15:30")
-        output_idx = pd.DatetimeIndex(output.index)
-        output = output[output_idx.minute % 5 == 0]
+
+        if not output.empty:
+            output = self._filter_by_interval_anchor(output, interval_minutes)
 
         if output.empty:
             raise NoDataError(ERROR_CODES["E_MD_005"], "no_market_data")
 
         return output
+
+    @staticmethod
+    def _filter_by_interval_anchor(df: pd.DataFrame, interval_minutes: int) -> pd.DataFrame:
+        filtered_frames: list[pd.DataFrame] = []
+        index = pd.DatetimeIndex(df.index)
+        by_date = pd.Series(index=index, data=index.date)
+
+        for trade_date in by_date.unique():
+            date_mask = by_date == trade_date
+            day_df = df[date_mask.to_numpy()]
+            if day_df.empty:
+                continue
+
+            day_idx = pd.DatetimeIndex(day_df.index)
+            anchor_minute = int(day_idx[0].hour) * 60 + int(day_idx[0].minute)
+            day_minutes = day_idx.hour * 60 + day_idx.minute
+            keep_mask = ((day_minutes - anchor_minute) % interval_minutes) == 0
+            filtered_frames.append(day_df[keep_mask])
+
+        if not filtered_frames:
+            return df.iloc[0:0]
+
+        return pd.concat(filtered_frames).sort_index()
 
     def validate_integrity(self, df: pd.DataFrame) -> None:
         if df.empty:

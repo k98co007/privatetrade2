@@ -9,6 +9,7 @@ from .constants import (
     RSI_BUY_SELL_TRAILING_STOP,
     RSI_BUY_THRESHOLD,
     SELL_TRAILING_STOP,
+    THREE_MINUTE_BUY_TRAILING_THEN_SELL_TRAILING,
 )
 from .errors import (
     DuplicateStrategyError,
@@ -36,6 +37,7 @@ __all__ = [
     "RSI_BUY_SELL_TRAILING_STOP",
     "RSI_BUY_THRESHOLD",
     "SELL_TRAILING_STOP",
+    "THREE_MINUTE_BUY_TRAILING_THEN_SELL_TRAILING",
     "SellReason",
     "StrategyError",
     "StrategyExecutionError",

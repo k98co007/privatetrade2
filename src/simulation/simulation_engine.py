@@ -72,16 +72,17 @@ class SimulationEngine:
         self._validate_request(request)
 
         try:
+            strategy = self._load_strategy(request.strategy_name)
+            interval = self._resolve_strategy_interval(strategy)
             seed_state = self.seed_money_manager.initialize(
                 request.initial_seed if request.initial_seed is not None else DEFAULT_INITIAL_SEED
             )
             candles = self.market_data_service.fetch_market_data_with_rsi(
                 symbol=request.symbol,
                 period=DEFAULT_PERIOD,
-                interval=DEFAULT_INTERVAL,
+                interval=interval,
             )
             days = self.split_trading_days(candles)
-            strategy = self._load_strategy(request.strategy_name)
 
             trades: list[TradeRecord] = []
             no_trade_days = 0
@@ -225,7 +226,7 @@ class SimulationEngine:
 
     def process_one_day(self, day_data: DailyCandles, seed_state: SeedState, strategy: Any) -> DayProcessResult:
         try:
-            self._validate_mandatory_candles(day_data.candles)
+            self._validate_mandatory_candles(day_data.candles, strategy)
             signal = strategy.evaluate(
                 daily_candles=day_data.candles,
                 rsi_data=day_data.rsi,
@@ -289,20 +290,76 @@ class SimulationEngine:
                 cause=exc,
             ) from exc
 
-    def _validate_mandatory_candles(self, candles: pd.DataFrame) -> None:
+    def _validate_mandatory_candles(self, candles: pd.DataFrame, strategy: Any) -> None:
         if "timestamp" not in candles.columns:
             raise MissingMandatoryCandleError(
                 ERROR_CODES["E_SIM_009"],
                 "timestamp_column_missing",
             )
 
-        hhmm = set(candles["timestamp"].dt.strftime("%H:%M").tolist())
-        missing = [value for value in MANDATORY_CANDLE_TIMES if value not in hhmm]
+        required_times = tuple(getattr(strategy, "required_times", MANDATORY_CANDLE_TIMES))
+        interval_minutes = getattr(strategy, "required_interval_minutes", 1)
+        missing = [
+            value
+            for value in required_times
+            if not self._has_required_time(candles, value, interval_minutes)
+        ]
         if missing:
             raise MissingMandatoryCandleError(
                 ERROR_CODES["E_SIM_009"],
                 f"missing_mandatory_candle_times:{','.join(missing)}",
             )
+
+    @staticmethod
+    def _has_required_time(candles: pd.DataFrame, required_time: str, interval_minutes: int) -> bool:
+        hhmm_series = candles["timestamp"].dt.strftime("%H:%M")
+        if (hhmm_series == required_time).any():
+            return True
+
+        target_minutes = SimulationEngine._parse_hhmm_to_minutes(required_time)
+        if target_minutes is None:
+            return False
+
+        try:
+            interval = int(interval_minutes)
+        except (TypeError, ValueError):
+            interval = 1
+
+        if interval <= 1:
+            return False
+
+        day_minutes = candles["timestamp"].dt.hour * 60 + candles["timestamp"].dt.minute
+        window_end = target_minutes + interval - 1
+        return ((day_minutes >= target_minutes) & (day_minutes <= window_end)).any()
+
+    @staticmethod
+    def _parse_hhmm_to_minutes(hhmm: str) -> int | None:
+        parts = hhmm.split(":")
+        if len(parts) != 2:
+            return None
+
+        try:
+            hour = int(parts[0])
+            minute = int(parts[1])
+        except ValueError:
+            return None
+
+        if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+            return None
+
+        return hour * 60 + minute
+
+    @staticmethod
+    def _resolve_strategy_interval(strategy: Any) -> str:
+        raw_interval_minutes = getattr(strategy, "required_interval_minutes", None)
+        try:
+            interval_minutes = int(raw_interval_minutes)
+        except (TypeError, ValueError):
+            return DEFAULT_INTERVAL
+
+        if interval_minutes <= 0:
+            return DEFAULT_INTERVAL
+        return f"{interval_minutes}m"
 
     def _build_simulation_result(
         self,

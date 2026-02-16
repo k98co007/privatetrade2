@@ -8,6 +8,7 @@ const ALLOWED_STRATEGIES: StrategyId[] = [
   'rsi_buy_sell_trailing_stop',
   'rsi_only_trailing_stop',
   'buy_trailing_then_sell_trailing',
+  'three_minute_buy_trailing_then_sell_trailing',
 ];
 
 export function normalizeSymbolInput(raw: string): string {
@@ -21,7 +22,7 @@ export function validateSymbol(symbol: string): string | null {
 export function validateStrategy(strategy: string): string | null {
   return ALLOWED_STRATEGIES.includes(strategy as StrategyId)
     ? null
-    : '전략 1/2/3/A/B 중 하나를 선택하세요.';
+    : '전략 1/2/3/A/B/C 중 하나를 선택하세요.';
 }
 
 export function validateSimulationId(simulationId: string | undefined): string | null {

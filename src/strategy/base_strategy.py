@@ -15,6 +15,8 @@ from .strategy_input_validator import StrategyInputValidator
 
 class BaseStrategy(ABC):
     required_times: tuple[str, ...] = (TIME_0905,)
+    required_reference_time: str = TIME_0905
+    required_interval_minutes: int = 5
 
     def __init__(self, input_validator: StrategyInputValidator | None = None) -> None:
         self.input_validator = input_validator or StrategyInputValidator()
@@ -54,9 +56,10 @@ class BaseStrategy(ABC):
                 daily_candles=daily_candles,
                 rsi_data=rsi_data,
                 required_times=self.required_times,
+                interval_minutes=self.required_interval_minutes,
             )
-            candle_0905 = self._must_find_candle(normalized_candles, TIME_0905)
-            context = self.initialize_day(candle_0905, seed_money)
+            reference_candle = self._must_find_candle(normalized_candles, self.required_reference_time)
+            context = self.initialize_day(reference_candle, seed_money)
             rsi_lookup = self._build_rsi_lookup(normalized_rsi)
 
             for _, candle in normalized_candles.iterrows():
@@ -195,12 +198,45 @@ class BaseStrategy(ABC):
             meta=meta,
         )
 
-    @staticmethod
-    def _must_find_candle(daily_candles: pd.DataFrame, hhmm: str) -> pd.Series:
+    def _must_find_candle(self, daily_candles: pd.DataFrame, hhmm: str) -> pd.Series:
         matched = daily_candles[daily_candles["timestamp"].dt.strftime("%H:%M") == hhmm]
         if matched.empty:
+            fallback = self._find_next_candle_within_interval(daily_candles, hhmm)
+            if fallback is not None:
+                return fallback
             raise StrategyInputError(
                 ERROR_CODES["E_ST_004"],
                 "strategy_input_missing_mandatory_candle",
             )
         return matched.iloc[0]
+
+    def _find_next_candle_within_interval(self, daily_candles: pd.DataFrame, hhmm: str) -> pd.Series | None:
+        target_minutes = self._parse_hhmm_to_minutes(hhmm)
+        if target_minutes is None or self.required_interval_minutes <= 1:
+            return None
+
+        timestamps = daily_candles["timestamp"]
+        day_minutes = timestamps.dt.hour * 60 + timestamps.dt.minute
+        window_end = target_minutes + self.required_interval_minutes - 1
+
+        candidates = daily_candles[(day_minutes >= target_minutes) & (day_minutes <= window_end)]
+        if candidates.empty:
+            return None
+        return candidates.iloc[0]
+
+    @staticmethod
+    def _parse_hhmm_to_minutes(hhmm: str) -> int | None:
+        parts = hhmm.split(":")
+        if len(parts) != 2:
+            return None
+
+        try:
+            hour = int(parts[0])
+            minute = int(parts[1])
+        except ValueError:
+            return None
+
+        if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+            return None
+
+        return hour * 60 + minute

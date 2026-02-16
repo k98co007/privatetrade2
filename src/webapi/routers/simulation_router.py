@@ -75,16 +75,29 @@ def create_simulation_router(simulation_facade: SimulationFacade, report_facade:
                 simulation_circuit.after_failure()
                 raise
 
+            result_payload: dict[str, Any]
+            if hasattr(result, "model_dump") and callable(getattr(result, "model_dump")):
+                result_payload = result.model_dump(mode="json")
+            elif isinstance(result, dict):
+                result_payload = result
+            elif hasattr(result, "dict") and callable(getattr(result, "dict")):
+                result_payload = result.dict()
+            else:
+                result_payload = dict(getattr(result, "__dict__", {}))
+
+            simulation_id = result_payload.get("simulation_id")
+            simulation_status = result_payload.get("status")
+
             LOGGER.info(
                 "simulation.start.accepted request_id=%s simulation_id=%s status=%s",
                 request_id,
-                result.simulation_id,
-                result.status,
+                simulation_id,
+                simulation_status,
             )
 
             return JSONResponse(
                 status_code=status.HTTP_202_ACCEPTED,
-                content=ResponseFormatter.ok(result.model_dump(mode="json"), request_id),
+                content=ResponseFormatter.ok(result_payload, request_id),
             )
         except Exception as exc:
             status_code, envelope = ErrorHandler.to_http_error(exc, request_id)
