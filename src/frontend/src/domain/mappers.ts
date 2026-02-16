@@ -4,6 +4,8 @@ export const STRATEGY_OPTIONS: StrategyOption[] = [
   { id: 'sell_trailing_stop', label: '매도 트레일링 스탑' },
   { id: 'buy_sell_trailing_stop', label: '매수/매도 트레일링 스탑' },
   { id: 'rsi_buy_sell_trailing_stop', label: 'RSI 매수/매도 트레일링 스탑' },
+  { id: 'rsi_only_trailing_stop', label: 'RSI<=30 매수 + 매도 트레일링 스탑' },
+  { id: 'buy_trailing_then_sell_trailing', label: '매수 트레일링 + 매도 트레일링 스탑' },
 ];
 
 const SELL_REASON_MAP: Record<string, string> = {

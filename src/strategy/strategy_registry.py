@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from .base_strategy import BaseStrategy
+from .buy_trailing_then_sell_trailing_strategy import BuyTrailingThenSellTrailingStrategy
 from .buy_sell_trailing_stop_strategy import BuySellTrailingStopStrategy
 from .constants import ERROR_CODES
 from .errors import DuplicateStrategyError, StrategyNotFoundError
 from .rsi_buy_sell_trailing_stop_strategy import RSIBuySellTrailingStopStrategy
+from .rsi_only_trailing_stop_strategy import RSIOnlyTrailingStopStrategy
 from .sell_trailing_stop_strategy import SellTrailingStopStrategy
 
 
@@ -33,3 +35,5 @@ class StrategyRegistry:
         self.register(SellTrailingStopStrategy())
         self.register(BuySellTrailingStopStrategy())
         self.register(RSIBuySellTrailingStopStrategy())
+        self.register(RSIOnlyTrailingStopStrategy())
+        self.register(BuyTrailingThenSellTrailingStrategy())

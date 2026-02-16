@@ -5,6 +5,8 @@ from decimal import Decimal
 SELL_TRAILING_STOP = "sell_trailing_stop"
 BUY_SELL_TRAILING_STOP = "buy_sell_trailing_stop"
 RSI_BUY_SELL_TRAILING_STOP = "rsi_buy_sell_trailing_stop"
+RSI_ONLY_TRAILING_STOP = "rsi_only_trailing_stop"
+BUY_TRAILING_THEN_SELL_TRAILING = "buy_trailing_then_sell_trailing"
 
 TIME_0905 = "09:05"
 TIME_1500 = "14:55"

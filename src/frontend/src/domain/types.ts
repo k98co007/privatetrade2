@@ -4,7 +4,9 @@ export type NetworkState = 'online' | 'offline' | 'degraded';
 export type StrategyId =
   | 'sell_trailing_stop'
   | 'buy_sell_trailing_stop'
-  | 'rsi_buy_sell_trailing_stop';
+  | 'rsi_buy_sell_trailing_stop'
+  | 'rsi_only_trailing_stop'
+  | 'buy_trailing_then_sell_trailing';
 
 export type StrategyOption = {
   id: StrategyId;
