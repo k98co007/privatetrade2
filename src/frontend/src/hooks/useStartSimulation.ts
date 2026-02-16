@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { normalizeStartResponse } from '../domain/normalizers';
+import { toUiError } from '../domain/errorMapper';
 import { normalizeSymbolInput, validateStartForm } from '../domain/validators';
 import type { StrategyId } from '../domain/types';
 import { startSimulation } from '../services/simulationApi';
@@ -19,6 +20,7 @@ export function useStartSimulation() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const submitStart = async (input: { symbol: string; strategy: StrategyId }): Promise<{ simulationId: string } | null> => {
     if (isSubmitting) {
@@ -28,6 +30,7 @@ export function useStartSimulation() {
     const normalizedSymbol = normalizeSymbolInput(input.symbol);
     const errors = validateStartForm(normalizedSymbol, input.strategy);
     setFieldErrors(errors);
+    setSubmitError(null);
     if (Object.keys(errors).length > 0) {
       return null;
     }
@@ -45,7 +48,8 @@ export function useStartSimulation() {
       navigate(`/monitoring/${normalized.simulationId}`);
       return { simulationId: normalized.simulationId };
     } catch (error) {
-      void error;
+      const uiError = toUiError(error);
+      setSubmitError(uiError.messageKo);
       return null;
     } finally {
       setIsSubmitting(false);
@@ -57,5 +61,6 @@ export function useStartSimulation() {
     isSubmitting,
     fieldErrors,
     setFieldErrors,
+    submitError,
   };
 }

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
@@ -18,6 +20,9 @@ from .errors import (
     WebApiError,
 )
 from .response_formatter import ResponseFormatter
+
+
+LOGGER = logging.getLogger("webapi.error")
 
 
 class ErrorHandler:
@@ -59,4 +64,23 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _handle_exception(request: Request, exc: Exception) -> JSONResponse:
         request_id = getattr(request.state, "request_id", "REQ-UNKNOWN")
         status_code, envelope = ErrorHandler.to_http_error(exc, request_id)
+        if status_code >= 500:
+            LOGGER.exception(
+                "exception.unhandled request_id=%s method=%s path=%s status=%s code=%s",
+                request_id,
+                request.method,
+                request.url.path,
+                status_code,
+                envelope.get("error", {}).get("code"),
+            )
+        else:
+            LOGGER.warning(
+                "exception.handled request_id=%s method=%s path=%s status=%s code=%s message=%s",
+                request_id,
+                request.method,
+                request.url.path,
+                status_code,
+                envelope.get("error", {}).get("code"),
+                envelope.get("error", {}).get("message"),
+            )
         return JSONResponse(status_code=status_code, content=envelope)

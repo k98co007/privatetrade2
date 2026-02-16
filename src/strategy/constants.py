@@ -7,8 +7,8 @@ BUY_SELL_TRAILING_STOP = "buy_sell_trailing_stop"
 RSI_BUY_SELL_TRAILING_STOP = "rsi_buy_sell_trailing_stop"
 
 TIME_0905 = "09:05"
-TIME_1500 = "15:00"
-TIME_1505 = "15:05"
+TIME_1500 = "14:55"
+TIME_1505 = "14:55"
 
 PROFIT_TRIGGER_RATE = Decimal("1.0")
 PRESERVE_RATIO_THRESHOLD = Decimal("80")

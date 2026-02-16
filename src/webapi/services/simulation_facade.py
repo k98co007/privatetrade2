@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import threading
 import uuid
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -17,6 +18,9 @@ from webapi.constants import DEFAULT_INITIAL_SEED, IDEMPOTENCY_TTL
 from webapi.errors import DuplicateRequestInFlightError, SimulationNotFoundError
 from webapi.models import InternalSimulationState, SimulationStartResult
 from webapi.services.stream_session_manager import StreamSessionManager
+
+
+LOGGER = logging.getLogger("webapi.service.simulation")
 
 
 @dataclass
@@ -47,12 +51,19 @@ class SimulationFacade:
 
     def start_simulation(self, symbol: str, strategy: str, idempotency_key: str | None) -> SimulationStartResult:
         now = datetime.now(ZoneInfo("Asia/Seoul"))
+        LOGGER.info(
+            "simulation.enqueue.request symbol=%s strategy=%s idempotency=%s",
+            symbol,
+            strategy,
+            "present" if idempotency_key else "none",
+        )
         if idempotency_key:
             with self._lock:
                 self._cleanup_idempotency(now)
                 existing = self._idempotency_store.get(idempotency_key)
                 if existing is not None:
                     if existing.in_flight and existing.simulation_id is None:
+                        LOGGER.warning("simulation.enqueue.duplicate_in_flight idempotency_key=%s", idempotency_key)
                         raise DuplicateRequestInFlightError(
                             code="DUPLICATE_REQUEST_IN_FLIGHT",
                             message="동일 요청이 처리 중입니다",
@@ -60,6 +71,12 @@ class SimulationFacade:
                     if existing.simulation_id is not None:
                         state = self._status_store.get(existing.simulation_id)
                         if state is not None:
+                            LOGGER.info(
+                                "simulation.enqueue.idempotent_hit idempotency_key=%s simulation_id=%s status=%s",
+                                idempotency_key,
+                                state.simulation_id,
+                                state.status,
+                            )
                             return SimulationStartResult(**state.model_dump())
 
                 self._idempotency_store[idempotency_key] = IdempotencyRecord(
@@ -85,6 +102,12 @@ class SimulationFacade:
             self._status_store[simulation_id] = status
             if idempotency_key:
                 self._idempotency_store[idempotency_key].simulation_id = simulation_id
+        LOGGER.info(
+            "simulation.enqueue.accepted simulation_id=%s symbol=%s strategy=%s",
+            simulation_id,
+            symbol,
+            strategy,
+        )
 
         future = self._executor.submit(self._run_simulation_job, simulation_id, symbol, strategy, idempotency_key)
         with self._lock:
@@ -115,6 +138,12 @@ class SimulationFacade:
             return simulation_id in self._status_store
 
     def _run_simulation_job(self, simulation_id: str, symbol: str, strategy: str, idempotency_key: str | None) -> None:
+        LOGGER.info(
+            "simulation.job.start simulation_id=%s symbol=%s strategy=%s",
+            simulation_id,
+            symbol,
+            strategy,
+        )
         self._update_status(simulation_id, status="running")
         try:
             self.simulation_engine.event_emitter.dispatcher = self._build_dispatcher(simulation_id)
@@ -124,6 +153,13 @@ class SimulationFacade:
 
             self.repository.create_simulation_result(result)
             self.repository.create_trade_records(simulation_id=simulation_id, trades=result.trades)
+            LOGGER.info(
+                "simulation.job.persisted simulation_id=%s trades=%s final_seed=%s total_profit_rate=%s",
+                simulation_id,
+                len(result.trades),
+                format(result.final_seed, "f"),
+                format(result.total_profit_rate, "f"),
+            )
 
             self._update_status(simulation_id, status=STATUS_COMPLETED)
             self.stream_session_manager.append_event(
@@ -135,6 +171,7 @@ class SimulationFacade:
                     "total_profit_rate": format(result.total_profit_rate, "f"),
                 },
             )
+            LOGGER.info("simulation.job.completed simulation_id=%s", simulation_id)
         except Exception as exc:
             self._update_status(
                 simulation_id,
@@ -152,12 +189,18 @@ class SimulationFacade:
                     "detail": str(exc),
                 },
             )
+            LOGGER.exception("simulation.job.failed simulation_id=%s", simulation_id)
         finally:
             if idempotency_key:
                 with self._lock:
                     record = self._idempotency_store.get(idempotency_key)
                     if record is not None:
                         record.in_flight = False
+                        LOGGER.info(
+                            "simulation.job.idempotency_released simulation_id=%s idempotency_key=%s",
+                            simulation_id,
+                            idempotency_key,
+                        )
 
     def _build_dispatcher(self, simulation_id: str):
         def _dispatch(event_type: str, payload: dict) -> None:
@@ -186,10 +229,18 @@ class SimulationFacade:
             state = self._status_store.get(simulation_id)
             if state is None:
                 return
+            previous_status = state.status
             state.status = status
             state.updated_at = datetime.now(ZoneInfo("Asia/Seoul"))
             state.error_code = error_code
             state.error_message = error_message
+            LOGGER.info(
+                "simulation.status.updated simulation_id=%s from=%s to=%s error_code=%s",
+                simulation_id,
+                previous_status,
+                status,
+                error_code,
+            )
 
     def _cleanup_idempotency(self, now: datetime) -> None:
         stale_keys = [key for key, value in self._idempotency_store.items() if value.expires_at <= now]

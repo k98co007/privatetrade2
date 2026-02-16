@@ -89,4 +89,4 @@ class StreamSessionManager:
     @staticmethod
     def to_sse_frame(event: SseEvent) -> str:
         payload = json.dumps(event.data, ensure_ascii=False)
-        return f"id: {event.id}\\nevent: {event.event}\\nretry: {event.retry}\\ndata: {payload}\\n\\n"
+        return f"id: {event.id}\nevent: {event.event}\nretry: {event.retry}\ndata: {payload}\n\n"

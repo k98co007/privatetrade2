@@ -11,7 +11,7 @@ export function SimulationStartPage() {
   const [symbolInput, setSymbolInput] = useState('');
   const [strategy, setStrategy] = useState<StrategyId>('sell_trailing_stop');
 
-  const { submitStart, isSubmitting, fieldErrors, setFieldErrors } = useStartSimulation();
+  const { submitStart, isSubmitting, fieldErrors, setFieldErrors, submitError } = useStartSimulation();
 
   const normalizedSymbol = useMemo(() => normalizeSymbolInput(symbolInput), [symbolInput]);
 
@@ -46,6 +46,7 @@ export function SimulationStartPage() {
         <button type="submit" disabled={isSubmitting}>
           {isSubmitting ? '시작 중...' : '시작'}
         </button>
+        {submitError && <p role="alert">{submitError}</p>}
       </form>
     </main>
   );

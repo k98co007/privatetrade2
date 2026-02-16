@@ -28,6 +28,47 @@ npm run build
 Set-Location ../..
 ```
 
+### 2.3 최소 실행 (복붙용)
+프로젝트 루트(`c:\Dev\privatetrade2`) 기준, 터미널 2개를 사용한다.
+
+터미널 1 (Backend):
+
+```powershell
+pip install -r requirements.txt
+$env:PYTHONPATH = "src"
+python -m uvicorn webapi:app --host 127.0.0.1 --port 8000 --reload
+```
+
+터미널 2 (Frontend):
+
+```powershell
+Set-Location src/frontend
+npm.cmd install
+npm.cmd run dev -- --host 127.0.0.1 --port 5173
+```
+
+접속:
+- Frontend: `http://127.0.0.1:5173`
+- Backend API 문서: `http://127.0.0.1:8000/docs`
+
+참고:
+- PowerShell 실행 정책으로 `npm` 오류가 나면 `npm.cmd`를 사용한다.
+
+### 2.4 서버 로그 확인 (문제 분석용)
+Backend 실행 시 아래처럼 실행하면 API 요청/응답, 예외, 시뮬레이션 상태 전이, SSE 연결 로그를 확인할 수 있다.
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m uvicorn webapi:app --host 127.0.0.1 --port 8000 --reload --log-level info
+```
+
+주요 로그 키워드:
+- `request.start`, `request.end`, `request.error`
+- `simulation.start.*`, `simulation.job.*`, `simulation.status.updated`
+- `report.get.*`, `report.generate.*`
+- `sse.connect.*`
+- `dependency.timeout`, `exception.*`
+
 ## 3. CI 파이프라인
 - 워크플로: `.github/workflows/ci-cd.yml`
 - Stage:

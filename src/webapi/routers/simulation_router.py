@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Request, status
@@ -33,6 +34,9 @@ from webapi.validators import (
 )
 
 
+LOGGER = logging.getLogger("webapi.router.simulation")
+
+
 def create_simulation_router(simulation_facade: SimulationFacade, report_facade: ReportFacade) -> APIRouter:
     router = APIRouter(prefix=API_PREFIX)
     simulation_circuit = CircuitBreaker("simulation")
@@ -46,6 +50,13 @@ def create_simulation_router(simulation_facade: SimulationFacade, report_facade:
             body = validate_start_request(payload)
             header_idempotency_key = request.headers.get(HEADER_IDEMPOTENCY_KEY)
             idempotency_key = header_idempotency_key or body.idempotency_key
+            LOGGER.info(
+                "simulation.start.request request_id=%s symbol=%s strategy=%s idempotency=%s",
+                request_id,
+                body.symbol,
+                body.strategy,
+                "present" if idempotency_key else "none",
+            )
 
             simulation_circuit.before_call()
             try:
@@ -64,12 +75,27 @@ def create_simulation_router(simulation_facade: SimulationFacade, report_facade:
                 simulation_circuit.after_failure()
                 raise
 
+            LOGGER.info(
+                "simulation.start.accepted request_id=%s simulation_id=%s status=%s",
+                request_id,
+                result.simulation_id,
+                result.status,
+            )
+
             return JSONResponse(
                 status_code=status.HTTP_202_ACCEPTED,
                 content=ResponseFormatter.ok(result.model_dump(mode="json"), request_id),
             )
         except Exception as exc:
             status_code, envelope = ErrorHandler.to_http_error(exc, request_id)
+            log_fn = LOGGER.exception if status_code >= 500 else LOGGER.warning
+            log_fn(
+                "simulation.start.error request_id=%s status=%s code=%s message=%s",
+                request_id,
+                status_code,
+                envelope.get("error", {}).get("code"),
+                envelope.get("error", {}).get("message"),
+            )
             return JSONResponse(status_code=status_code, content=envelope)
 
     @router.get(SIMULATIONS_PATH)
@@ -77,6 +103,13 @@ def create_simulation_router(simulation_facade: SimulationFacade, report_facade:
         request_id = request.state.request_id
         try:
             query = validate_list_query(dict(request.query_params.items()))
+            LOGGER.info(
+                "simulation.list.request request_id=%s status=%s offset=%s limit=%s",
+                request_id,
+                query.status,
+                query.offset,
+                query.limit,
+            )
 
             simulation_circuit.before_call()
             try:
@@ -96,9 +129,22 @@ def create_simulation_router(simulation_facade: SimulationFacade, report_facade:
                 raise
 
             data: list[dict[str, Any]] = [row.model_dump(mode="json") for row in rows]
+            LOGGER.info(
+                "simulation.list.success request_id=%s count=%s",
+                request_id,
+                len(data),
+            )
             return JSONResponse(status_code=200, content=ResponseFormatter.ok(data, request_id))
         except Exception as exc:
             status_code, envelope = ErrorHandler.to_http_error(exc, request_id)
+            log_fn = LOGGER.exception if status_code >= 500 else LOGGER.warning
+            log_fn(
+                "simulation.list.error request_id=%s status=%s code=%s message=%s",
+                request_id,
+                status_code,
+                envelope.get("error", {}).get("code"),
+                envelope.get("error", {}).get("message"),
+            )
             return JSONResponse(status_code=status_code, content=envelope)
 
     @router.get(SIMULATION_BY_ID_PATH)
@@ -106,6 +152,11 @@ def create_simulation_router(simulation_facade: SimulationFacade, report_facade:
         request_id = request.state.request_id
         try:
             valid_simulation_id = validate_simulation_id(simulation_id)
+            LOGGER.info(
+                "simulation.get.request request_id=%s simulation_id=%s",
+                request_id,
+                valid_simulation_id,
+            )
 
             simulation_circuit.before_call()
             try:
@@ -119,9 +170,24 @@ def create_simulation_router(simulation_facade: SimulationFacade, report_facade:
                 simulation_circuit.after_failure()
                 raise
 
+            LOGGER.info(
+                "simulation.get.success request_id=%s simulation_id=%s status=%s",
+                request_id,
+                row.simulation_id,
+                row.status,
+            )
             return JSONResponse(status_code=200, content=ResponseFormatter.ok(row.model_dump(mode="json"), request_id))
         except Exception as exc:
             status_code, envelope = ErrorHandler.to_http_error(exc, request_id)
+            log_fn = LOGGER.exception if status_code >= 500 else LOGGER.warning
+            log_fn(
+                "simulation.get.error request_id=%s simulation_id=%s status=%s code=%s message=%s",
+                request_id,
+                simulation_id,
+                status_code,
+                envelope.get("error", {}).get("code"),
+                envelope.get("error", {}).get("message"),
+            )
             return JSONResponse(status_code=status_code, content=envelope)
 
     @router.get(SIMULATION_REPORT_PATH)
@@ -130,6 +196,14 @@ def create_simulation_router(simulation_facade: SimulationFacade, report_facade:
         try:
             valid_simulation_id = validate_simulation_id(simulation_id)
             query = validate_report_query(dict(request.query_params.items()))
+            LOGGER.info(
+                "report.get.request request_id=%s simulation_id=%s schema_version=%s include_no_trade=%s sort_order=%s",
+                request_id,
+                valid_simulation_id,
+                query.schema_version,
+                query.include_no_trade,
+                query.sort_order,
+            )
 
             simulation_circuit.before_call()
             try:
@@ -169,9 +243,23 @@ def create_simulation_router(simulation_facade: SimulationFacade, report_facade:
                 report_circuit.after_failure()
                 raise
 
+            LOGGER.info(
+                "report.get.success request_id=%s simulation_id=%s",
+                request_id,
+                valid_simulation_id,
+            )
             return JSONResponse(status_code=200, content=ResponseFormatter.ok(report, request_id))
         except Exception as exc:
             status_code, envelope = ErrorHandler.to_http_error(exc, request_id)
+            log_fn = LOGGER.exception if status_code >= 500 else LOGGER.warning
+            log_fn(
+                "report.get.error request_id=%s simulation_id=%s status=%s code=%s message=%s",
+                request_id,
+                simulation_id,
+                status_code,
+                envelope.get("error", {}).get("code"),
+                envelope.get("error", {}).get("message"),
+            )
             return JSONResponse(status_code=status_code, content=envelope)
 
     return router
