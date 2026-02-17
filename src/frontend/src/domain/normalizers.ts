@@ -57,6 +57,7 @@ function normalizeTrades(rows: ApiReportResponse['trades']): TradeRow[] {
     .map((row) => ({
       tradeId: row.trade_id,
       tradeDate: row.trade_date,
+      symbolCode: row.symbol_code,
       buyDatetime: row.buy_datetime,
       buyPrice: row.buy_price === null ? null : toNumber(row.buy_price),
       buyQuantity: toNumber(row.buy_quantity),

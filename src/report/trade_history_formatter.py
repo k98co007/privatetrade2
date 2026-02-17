@@ -30,6 +30,7 @@ class TradeHistoryFormatter:
                 TradeDetail(
                     trade_id=sequence,
                     trade_date=self._format_date(normalized.trade_date),
+                    symbol_code=normalized.symbol_code,
                     buy_datetime=self._format_datetime(normalized.buy_datetime),
                     buy_price=normalized.buy_price,
                     buy_quantity=normalized.buy_quantity,

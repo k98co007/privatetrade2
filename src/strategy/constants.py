@@ -8,6 +8,7 @@ RSI_BUY_SELL_TRAILING_STOP = "rsi_buy_sell_trailing_stop"
 RSI_ONLY_TRAILING_STOP = "rsi_only_trailing_stop"
 BUY_TRAILING_THEN_SELL_TRAILING = "buy_trailing_then_sell_trailing"
 THREE_MINUTE_BUY_TRAILING_THEN_SELL_TRAILING = "three_minute_buy_trailing_then_sell_trailing"
+TWO_MINUTE_MULTI_SYMBOL_BUY_TRAILING_THEN_SELL_TRAILING = "two_minute_multi_symbol_buy_trailing_then_sell_trailing"
 
 TIME_0903 = "09:03"
 TIME_0905 = "09:05"

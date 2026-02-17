@@ -9,14 +9,47 @@ const ALLOWED_STRATEGIES: StrategyId[] = [
   'rsi_only_trailing_stop',
   'buy_trailing_then_sell_trailing',
   'three_minute_buy_trailing_then_sell_trailing',
+  'two_minute_multi_symbol_buy_trailing_then_sell_trailing',
 ];
+
+const STRATEGY_D_ID = 'two_minute_multi_symbol_buy_trailing_then_sell_trailing';
+const STRATEGY_D_MAX_SYMBOLS = 20;
 
 export function normalizeSymbolInput(raw: string): string {
   return raw.trim().toUpperCase();
 }
 
+export function normalizeSymbolsInput(raw: string): string {
+  return raw
+    .split(',')
+    .map((value) => value.trim().toUpperCase())
+    .filter((value) => value.length > 0)
+    .join(', ');
+}
+
+export function parseSymbolsInput(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((value) => value.trim().toUpperCase())
+    .filter((value) => value.length > 0);
+}
+
 export function validateSymbol(symbol: string): string | null {
   return SYMBOL_REGEX.test(symbol) ? null : '유효한 코스피 심볼을 입력하세요. 예: 005930.KS';
+}
+
+export function validateSymbols(symbols: string[]): string | null {
+  if (symbols.length < 1 || symbols.length > STRATEGY_D_MAX_SYMBOLS) {
+    return '종목 심볼을 1~20개 입력하세요. 예: 005930.KS, 000660.KS';
+  }
+
+  for (const symbol of symbols) {
+    if (!SYMBOL_REGEX.test(symbol)) {
+      return '유효한 코스피 심볼 목록을 입력하세요. 예: 005930.KS, 000660.KS';
+    }
+  }
+
+  return null;
 }
 
 export function validateStrategy(strategy: string): string | null {
@@ -32,11 +65,17 @@ export function validateSimulationId(simulationId: string | undefined): string |
   return null;
 }
 
-export function validateStartForm(symbol: string, strategy: string): { symbol?: string; strategy?: string } {
-  const symbolError = validateSymbol(symbol);
+export function validateStartForm(
+  symbol: string,
+  strategy: string,
+  symbols: string[] = [],
+): { symbol?: string; symbols?: string; strategy?: string } {
+  const symbolError = strategy === STRATEGY_D_ID ? null : validateSymbol(symbol);
+  const symbolsError = strategy === STRATEGY_D_ID ? validateSymbols(symbols) : null;
   const strategyError = validateStrategy(strategy);
   return {
     ...(symbolError ? { symbol: symbolError } : {}),
+    ...(symbolsError ? { symbols: symbolsError } : {}),
     ...(strategyError ? { strategy: strategyError } : {}),
   };
 }

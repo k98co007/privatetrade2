@@ -94,8 +94,8 @@ class ReportRepository:
         INSERT INTO trades (
             simulation_id, trade_date, buy_datetime, buy_price, buy_quantity, buy_amount,
             sell_datetime, sell_price, sell_quantity, sell_amount,
-            sell_reason, tax, fee, net_profit, profit_rate, seed_money_after
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            sell_reason, tax, fee, net_profit, profit_rate, seed_money_after, symbol_code
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """
         rows = [
             (
@@ -115,6 +115,7 @@ class ReportRepository:
                 str(trade.net_profit),
                 str(trade.profit_rate),
                 str(trade.seed_money_after),
+                trade.symbol_code,
             )
             for trade in trades
         ]
@@ -186,7 +187,7 @@ class ReportRepository:
             trade_id, trade_date,
             buy_datetime, buy_price, buy_quantity, buy_amount,
             sell_datetime, sell_price, sell_quantity, sell_amount,
-            sell_reason, tax, fee, net_profit, profit_rate, seed_money_after
+            sell_reason, tax, fee, net_profit, profit_rate, seed_money_after, symbol_code
         FROM trades
         WHERE simulation_id = ?
           AND (? = 1 OR sell_reason NOT IN ('no_trade', 'error_skip'))
@@ -234,6 +235,7 @@ class ReportRepository:
                     profit_rate=Decimal(row["profit_rate"]),
                     sell_reason=row["sell_reason"],
                     seed_money_after=Decimal(row["seed_money_after"]),
+                    symbol_code=row["symbol_code"],
                 )
             )
         return records
@@ -353,6 +355,7 @@ class ReportRepository:
             net_profit TEXT NOT NULL,
             profit_rate TEXT NOT NULL,
             seed_money_after TEXT NOT NULL,
+            symbol_code TEXT NULL,
             FOREIGN KEY (simulation_id) REFERENCES simulations(simulation_id)
         );
         """
@@ -367,6 +370,12 @@ class ReportRepository:
             with self._cursor() as cursor:
                 cursor.execute(simulations_sql)
                 cursor.execute(trades_sql)
+                trade_columns = {
+                    str(row[1]).lower()
+                    for row in cursor.execute("PRAGMA table_info(trades)").fetchall()
+                }
+                if "symbol_code" not in trade_columns:
+                    cursor.execute("ALTER TABLE trades ADD COLUMN symbol_code TEXT NULL")
                 for sql in indexes:
                     cursor.execute(sql)
         except Exception as exc:

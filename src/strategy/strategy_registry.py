@@ -9,6 +9,9 @@ from .rsi_buy_sell_trailing_stop_strategy import RSIBuySellTrailingStopStrategy
 from .rsi_only_trailing_stop_strategy import RSIOnlyTrailingStopStrategy
 from .sell_trailing_stop_strategy import SellTrailingStopStrategy
 from .three_minute_buy_trailing_then_sell_trailing_strategy import ThreeMinuteBuyTrailingThenSellTrailingStrategy
+from .two_minute_multi_symbol_buy_trailing_then_sell_trailing_strategy import (
+    TwoMinuteMultiSymbolBuyTrailingThenSellTrailingStrategy,
+)
 
 
 class StrategyRegistry:
@@ -39,3 +42,4 @@ class StrategyRegistry:
         self.register(RSIOnlyTrailingStopStrategy())
         self.register(BuyTrailingThenSellTrailingStrategy())
         self.register(ThreeMinuteBuyTrailingThenSellTrailingStrategy())
+        self.register(TwoMinuteMultiSymbolBuyTrailingThenSellTrailingStrategy())

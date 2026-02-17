@@ -16,6 +16,7 @@ class ProfitSummary:
 class TradeDetail:
     trade_id: int
     trade_date: str
+    symbol_code: str | None
     buy_datetime: str | None
     buy_price: Decimal | None
     buy_quantity: int

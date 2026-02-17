@@ -59,6 +59,7 @@ def serialize_comprehensive_report(report: ComprehensiveReport) -> dict:
             {
                 "trade_id": trade.trade_id,
                 "trade_date": trade.trade_date,
+                "symbol_code": trade.symbol_code,
                 "buy_datetime": trade.buy_datetime,
                 "buy_price": None if trade.buy_price is None else decimal_amount_to_string(trade.buy_price),
                 "buy_quantity": trade.buy_quantity,

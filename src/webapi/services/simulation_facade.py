@@ -49,13 +49,20 @@ class SimulationFacade:
         self._idempotency_store: dict[str, IdempotencyRecord] = {}
         self._lock = threading.Lock()
 
-    def start_simulation(self, symbol: str, strategy: str, idempotency_key: str | None) -> SimulationStartResult:
+    def start_simulation(
+        self,
+        symbol: str,
+        strategy: str,
+        idempotency_key: str | None,
+        symbols: list[str] | None = None,
+    ) -> SimulationStartResult:
         now = datetime.now(ZoneInfo("Asia/Seoul"))
         LOGGER.info(
-            "simulation.enqueue.request symbol=%s strategy=%s idempotency=%s",
+            "simulation.enqueue.request symbol=%s strategy=%s idempotency=%s symbols_count=%s",
             symbol,
             strategy,
             "present" if idempotency_key else "none",
+            0 if symbols is None else len(symbols),
         )
         if idempotency_key:
             with self._lock:
@@ -109,7 +116,14 @@ class SimulationFacade:
             strategy,
         )
 
-        future = self._executor.submit(self._run_simulation_job, simulation_id, symbol, strategy, idempotency_key)
+        future = self._executor.submit(
+            self._run_simulation_job,
+            simulation_id,
+            symbol,
+            strategy,
+            idempotency_key,
+            symbols,
+        )
         with self._lock:
             self._jobs[simulation_id] = future
 
@@ -137,7 +151,14 @@ class SimulationFacade:
         with self._lock:
             return simulation_id in self._status_store
 
-    def _run_simulation_job(self, simulation_id: str, symbol: str, strategy: str, idempotency_key: str | None) -> None:
+    def _run_simulation_job(
+        self,
+        simulation_id: str,
+        symbol: str,
+        strategy: str,
+        idempotency_key: str | None,
+        symbols: list[str] | None,
+    ) -> None:
         LOGGER.info(
             "simulation.job.start simulation_id=%s symbol=%s strategy=%s",
             simulation_id,
@@ -147,7 +168,12 @@ class SimulationFacade:
         self._update_status(simulation_id, status="running")
         try:
             self.simulation_engine.event_emitter.dispatcher = self._build_dispatcher(simulation_id)
-            request = SimulationRequest(symbol=symbol, strategy_name=strategy, initial_seed=Decimal(DEFAULT_INITIAL_SEED))
+            request = SimulationRequest(
+                symbol=symbol,
+                strategy_name=strategy,
+                initial_seed=Decimal(DEFAULT_INITIAL_SEED),
+                symbols=symbols,
+            )
             result = self.simulation_engine.run_simulation(request)
             result = self._replace_result_simulation_id(result, simulation_id)
 

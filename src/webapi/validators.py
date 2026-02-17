@@ -23,23 +23,58 @@ from .errors import InvalidStrategyError, InvalidSymbolError, RequestValidationE
 from .models import ReportQuery, SimulationListQuery, SimulationStartRequest
 
 
+STRATEGY_D_ID = "two_minute_multi_symbol_buy_trailing_then_sell_trailing"
+STRATEGY_D_MAX_SYMBOLS = 20
+
+
 def validate_start_request(payload: dict[str, Any]) -> SimulationStartRequest:
     symbol = str(payload.get("symbol", "")).strip()
     strategy = str(payload.get("strategy", "")).strip()
+    symbols_payload = payload.get("symbols")
     idempotency_key = payload.get("idempotency_key")
 
-    if not symbol or not re.match(SYMBOL_REGEX, symbol):
-        raise InvalidSymbolError(
-            code="INVALID_SYMBOL",
-            message="유효하지 않은 종목 심볼입니다",
-            details={"field": "symbol", "rule": SYMBOL_REGEX},
-        )
     if strategy not in VALID_STRATEGIES:
         raise InvalidStrategyError(
             code="INVALID_STRATEGY",
             message="유효하지 않은 전략입니다",
             details={"field": "strategy", "allowed": list(VALID_STRATEGIES)},
         )
+
+    symbols: list[str] | None = None
+    if strategy == STRATEGY_D_ID:
+        if not isinstance(symbols_payload, list):
+            raise RequestValidationError(
+                code="INVALID_REQUEST",
+                message="요청 형식이 올바르지 않습니다",
+                details={"field": "symbols", "rule": "array[1..20]"},
+            )
+
+        symbols = [str(value).strip().upper() for value in symbols_payload if str(value).strip()]
+        if not symbols or len(symbols) > STRATEGY_D_MAX_SYMBOLS:
+            raise RequestValidationError(
+                code="INVALID_REQUEST",
+                message="요청 형식이 올바르지 않습니다",
+                details={"field": "symbols", "rule": "array[1..20]"},
+            )
+
+        invalid_symbols = [item for item in symbols if not re.match(SYMBOL_REGEX, item)]
+        if invalid_symbols:
+            raise InvalidSymbolError(
+                code="INVALID_SYMBOL",
+                message="유효하지 않은 종목 심볼입니다",
+                details={"field": "symbols", "rule": SYMBOL_REGEX},
+            )
+
+        if not symbol:
+            symbol = symbols[0]
+    else:
+        if not symbol or not re.match(SYMBOL_REGEX, symbol):
+            raise InvalidSymbolError(
+                code="INVALID_SYMBOL",
+                message="유효하지 않은 종목 심볼입니다",
+                details={"field": "symbol", "rule": SYMBOL_REGEX},
+            )
+
     if idempotency_key is not None:
         normalized = str(idempotency_key).strip()
         if not re.match(IDEMPOTENCY_KEY_REGEX, normalized):
@@ -50,7 +85,7 @@ def validate_start_request(payload: dict[str, Any]) -> SimulationStartRequest:
             )
         idempotency_key = normalized
 
-    return SimulationStartRequest(symbol=symbol, strategy=strategy, idempotency_key=idempotency_key)
+    return SimulationStartRequest(symbol=symbol, strategy=strategy, symbols=symbols, idempotency_key=idempotency_key)
 
 
 def validate_simulation_id(simulation_id: str) -> str:

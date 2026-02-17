@@ -51,6 +51,7 @@ export function TradeHistoryTable({ rows, loading, emptyText }: Props) {
             <tr>
               <th>거래번호</th>
               <th>거래일</th>
+              <th>종목 코드</th>
               <th>매수일시</th>
               <th>매수가</th>
               <th>매수수량</th>
@@ -71,6 +72,7 @@ export function TradeHistoryTable({ rows, loading, emptyText }: Props) {
               <tr key={row.tradeId}>
                 <td>{row.tradeId}</td>
                 <td>{row.tradeDate}</td>
+                <td>{row.symbolCode || '-'}</td>
                 <td>{formatDateTime(row.buyDatetime)}</td>
                 <td>{row.buyPrice == null ? '-' : formatCurrencyKRW(row.buyPrice)}</td>
                 <td>{row.buyQuantity}</td>

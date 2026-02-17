@@ -7,7 +7,8 @@ export type StrategyId =
   | 'rsi_buy_sell_trailing_stop'
   | 'rsi_only_trailing_stop'
   | 'buy_trailing_then_sell_trailing'
-  | 'three_minute_buy_trailing_then_sell_trailing';
+  | 'three_minute_buy_trailing_then_sell_trailing'
+  | 'two_minute_multi_symbol_buy_trailing_then_sell_trailing';
 
 export type StrategyOption = {
   id: StrategyId;
@@ -64,6 +65,7 @@ export type ReportSummary = {
 export type TradeRow = {
   tradeId: number;
   tradeDate: string;
+  symbolCode: string | null;
   buyDatetime: string | null;
   buyPrice: number | null;
   buyQuantity: number;
@@ -102,7 +104,8 @@ export type ReportCacheEntry = {
 };
 
 export type StartSimulationPayload = {
-  symbol: string;
+  symbol?: string;
+  symbols?: string[];
   strategy: StrategyId;
 };
 
@@ -157,6 +160,7 @@ export type ApiReportResponse = {
   trades: Array<{
     trade_id: number;
     trade_date: string;
+    symbol_code: string | null;
     buy_datetime: string | null;
     buy_price: string | null;
     buy_quantity: number;

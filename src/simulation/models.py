@@ -13,6 +13,7 @@ class SimulationRequest:
     symbol: str
     strategy_name: str
     initial_seed: Decimal | None = None
+    symbols: list[str] | None = None
 
 
 @dataclass
@@ -62,6 +63,7 @@ class TradeRecord:
     profit_rate: Decimal
     sell_reason: str
     seed_money_after: Decimal
+    symbol_code: str | None = None
 
 
 @dataclass(frozen=True)

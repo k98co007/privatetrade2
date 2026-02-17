@@ -28,6 +28,7 @@ class ApiEnvelope(BaseModel):
 class SimulationStartRequest(BaseModel):
     symbol: str
     strategy: str
+    symbols: list[str] | None = None
     idempotency_key: str | None = None
 
 

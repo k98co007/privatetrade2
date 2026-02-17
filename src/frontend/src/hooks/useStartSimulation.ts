@@ -10,6 +10,7 @@ import { useSimulationStore } from '../store/simulationStore';
 
 type FieldErrors = {
   symbol?: string;
+  symbols?: string;
   strategy?: string;
 };
 
@@ -22,13 +23,14 @@ export function useStartSimulation() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const submitStart = async (input: { symbol: string; strategy: StrategyId }): Promise<{ simulationId: string } | null> => {
+  const submitStart = async (input: { symbol: string; symbols: string[]; strategy: StrategyId }): Promise<{ simulationId: string } | null> => {
     if (isSubmitting) {
       return null;
     }
 
     const normalizedSymbol = normalizeSymbolInput(input.symbol);
-    const errors = validateStartForm(normalizedSymbol, input.strategy);
+    const normalizedSymbols = input.symbols.map((value) => normalizeSymbolInput(value)).filter((value) => value.length > 0);
+    const errors = validateStartForm(normalizedSymbol, input.strategy, normalizedSymbols);
     setFieldErrors(errors);
     setSubmitError(null);
     if (Object.keys(errors).length > 0) {
@@ -37,11 +39,16 @@ export function useStartSimulation() {
 
     setIsSubmitting(true);
     try {
-      const response = await startSimulation({ symbol: normalizedSymbol, strategy: input.strategy });
+      const isStrategyD = input.strategy === 'two_minute_multi_symbol_buy_trailing_then_sell_trailing';
+      const payload = isStrategyD
+        ? { strategy: input.strategy, symbols: normalizedSymbols }
+        : { strategy: input.strategy, symbol: normalizedSymbol };
+      const response = await startSimulation(payload);
       const normalized = normalizeStartResponse(response);
+      const displaySymbol = isStrategyD ? normalizedSymbols[0] ?? '' : normalizedSymbol;
       createSimulation({
         simulationId: normalized.simulationId,
-        symbol: normalizedSymbol,
+        symbol: displaySymbol,
         strategy: input.strategy,
       });
       updateStatus(normalized.simulationId, 'running');

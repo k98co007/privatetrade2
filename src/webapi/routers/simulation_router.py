@@ -66,6 +66,7 @@ def create_simulation_router(simulation_facade: SimulationFacade, report_facade:
                         body.symbol,
                         body.strategy,
                         idempotency_key,
+                        body.symbols,
                     ),
                     timeout_seconds=DEPENDENCY_TIMEOUT_SIM_START_SECONDS,
                     operation="simulation.start",
